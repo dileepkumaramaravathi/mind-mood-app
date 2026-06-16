@@ -10,7 +10,10 @@ import { Heart, Clock, Play, Square, Sparkles, Volume2 } from 'lucide-react';
 export default function Meditation({ token }: { token: string }) {
   const [isActive, setIsActive] = useState(false);
   const [exercise, setExercise] = useState<'box' | 'calm' | 'deep'>('calm');
+<<<<<<< HEAD
   const [selectedDuration, setSelectedDuration] = useState(120); // default 2 mins
+=======
+>>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
   const [secondsLeft, setSecondsLeft] = useState(120); // 2 Minutes
   const [breathPhase, setBreathPhase] = useState<'Inhale' | 'Hold' | 'Exhale'>('Inhale');
   const [phaseSecondsLeft, setPhaseSecondsLeft] = useState(4);
@@ -30,18 +33,30 @@ export default function Meditation({ token }: { token: string }) {
           if (prev <= 1) {
             setIsActive(false);
 
+<<<<<<< HEAD
             // Log completion to persistent database tracker!
+=======
+            // Log completion to persistent database milestone tracker!
+>>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
             fetch('/api/meditation/complete', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
               },
+<<<<<<< HEAD
               body: JSON.stringify({ seconds: selectedDuration }),
             }).catch((err) => console.error('Failed logging wellness points', err));
 
             alert(`Wonderful job! You have fully completed this ${formatMinSec(selectedDuration)} mental compression recovery milestone.`);
             return selectedDuration;
+=======
+              body: JSON.stringify({ seconds: 120 }),
+            }).catch((err) => console.error('Failed logging wellness points', err));
+
+            alert("Wonderful job! You have fully completed this mental compression recovery milestone.");
+            return 120;
+>>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
           }
           return prev - 1;
         });
@@ -78,7 +93,11 @@ export default function Meditation({ token }: { token: string }) {
 
   const handleStop = () => {
     setIsActive(false);
+<<<<<<< HEAD
     setSecondsLeft(selectedDuration);
+=======
+    setSecondsLeft(120);
+>>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
     setBreathPhase('Inhale');
     setPhaseSecondsLeft(cycles[exercise].inhale);
   };
@@ -173,7 +192,11 @@ export default function Meditation({ token }: { token: string }) {
             <button
               onClick={() => {
                 setExercise('calm');
+<<<<<<< HEAD
                 setSecondsLeft(selectedDuration);
+=======
+                setSecondsLeft(120);
+>>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
               }}
               disabled={isActive}
               id="sel-cycle-calm"
@@ -190,7 +213,11 @@ export default function Meditation({ token }: { token: string }) {
             <button
               onClick={() => {
                 setExercise('deep');
+<<<<<<< HEAD
                 setSecondsLeft(selectedDuration);
+=======
+                setSecondsLeft(120);
+>>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
               }}
               disabled={isActive}
               id="sel-cycle-deep"
@@ -207,7 +234,11 @@ export default function Meditation({ token }: { token: string }) {
             <button
               onClick={() => {
                 setExercise('box');
+<<<<<<< HEAD
                 setSecondsLeft(selectedDuration);
+=======
+                setSecondsLeft(120);
+>>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
               }}
               disabled={isActive}
               id="sel-cycle-box"
@@ -222,6 +253,7 @@ export default function Meditation({ token }: { token: string }) {
             </button>
           </div>
 
+<<<<<<< HEAD
           <div className="pt-4 border-t border-slate-100" id="duration-selection-section">
             <h3 className="font-sans font-bold text-slate-800 text-xs uppercase tracking-wider mb-2">Duration Selection</h3>
             <div className="flex flex-wrap gap-2" id="duration-selectors">
@@ -247,6 +279,8 @@ export default function Meditation({ token }: { token: string }) {
             </div>
           </div>
 
+=======
+>>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
           <div className="pt-4 border-t border-slate-150 flex items-center gap-2.5 text-xs font-sans text-slate-500">
             <Volume2 className="w-4 h-4 text-slate-400" />
             <span>Close your eyes and breathe in harmony with the color cloud's movement.</span>
