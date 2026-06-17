@@ -6,13 +6,14 @@ import { handleMockRequest } from './lib/mockApi';
 
 // Safely patch window.fetch globally to intercept and fall back to local client-side offline database
 const originalFetch = window.fetch;
-window.fetch = async function (...args) {
+
+const customFetch = async function (...args: any[]) {
   const requestUrl = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
   const isApi = requestUrl && (requestUrl.includes('/api/') || requestUrl.startsWith('/api/'));
 
   if (isApi) {
     try {
-      const response = await originalFetch(...args);
+      const response = await originalFetch(args[0] as RequestInfo, args[1] as RequestInit | undefined);
       const contentType = response.headers.get('content-type') || '';
       
       // If it's an API route and we did not get standard JSON response, we fall back to the secure local store
@@ -53,8 +54,29 @@ window.fetch = async function (...args) {
     }
   }
 
-  return originalFetch(...args);
+  return originalFetch(args[0] as RequestInfo, args[1] as RequestInit | undefined);
 };
+
+try {
+  Object.defineProperty(window, 'fetch', {
+    value: customFetch,
+    writable: true,
+    configurable: true,
+    enumerable: true
+  });
+} catch (e) {
+  console.warn('[Fetch Sandbox] Could not define fetch directly on window. Attempting prototype overwrite...', e);
+  try {
+    Object.defineProperty(Window.prototype, 'fetch', {
+      value: customFetch,
+      writable: true,
+      configurable: true,
+      enumerable: true
+    });
+  } catch (err) {
+    console.error('[Fetch Sandbox] Absolute fallback failed to override window.fetch:', err);
+  }
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
