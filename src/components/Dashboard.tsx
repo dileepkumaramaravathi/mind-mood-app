@@ -27,66 +27,6 @@ export default function Dashboard({ user, todayMood, onRecordMood, onNavigate, t
   const [searchResults, setSearchResults] = useState<{ journals: any[]; moods: any[] } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
-<<<<<<< HEAD
-  // Daily Habits Checklist
-  const [checklist, setChecklist] = useState(() => {
-    const saved = localStorage.getItem('daily_checklist');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          logMood: todayMood ? true : parsed.logMood,
-          doBreathing: parsed.doBreathing || false,
-          chatAI: parsed.chatAI || false,
-          writeJournal: parsed.writeJournal || false
-        };
-      } catch (e) {}
-    }
-    return {
-      logMood: todayMood ? true : false,
-      doBreathing: false,
-      chatAI: false,
-      writeJournal: false
-    };
-  });
-
-  // Keep logMood state synced with todayMood props
-  React.useEffect(() => {
-    if (todayMood) {
-      setChecklist(prev => {
-        const updated = { ...prev, logMood: true };
-        localStorage.setItem('daily_checklist', JSON.stringify(updated));
-        return updated;
-      });
-    }
-  }, [todayMood]);
-
-  const toggleChecklistItem = (key: 'logMood' | 'doBreathing' | 'chatAI' | 'writeJournal') => {
-    if (key === 'logMood' && todayMood) return; // Prevent toggling off if mood logged
-    setChecklist((prev) => {
-      const updated = { ...prev, [key]: !prev[key] };
-      localStorage.setItem('daily_checklist', JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  // Rotating wellness affirmations
-  const quotesList = [
-    { text: "Owning our story and loving ourselves through that process is the bravest thing that we will ever do.", author: "Brené Brown" },
-    { text: "You don't have to control your thoughts. You just have to stop letting them control you.", author: "Dan Millman" },
-    { text: "Breathe in deeply to bring your mind home to your body.", author: "Thich Nhat Hanh" },
-    { text: "Feelings come and go like clouds in a windy sky. Conscious breathing is my anchor.", author: "Thich Nhat Hanh" },
-    { text: "Self-care is how you take your power back.", author: "Lalah Delia" },
-    { text: "Quiet the mind and the soul will speak.", author: "Ma Jaya Sati Bhagavati" }
-  ];
-
-  const [dailyQuote] = useState(() => {
-    const day = new Date().getDate();
-    return quotesList[day % quotesList.length];
-  });
-
-=======
->>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
   const handleSearch = async (val: string) => {
     setSearchQuery(val);
     if (!val.trim()) {
@@ -367,99 +307,6 @@ export default function Dashboard({ user, todayMood, onRecordMood, onNavigate, t
             )}
           </div>
 
-<<<<<<< HEAD
-          {/* Daily Checklist */}
-          <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-xs animate-fade-in" id="daily-checklist-container">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-sans font-bold text-lg text-slate-800">Daily Wellness Checklist</h2>
-                <p className="text-xs font-sans text-slate-400">Complete tasks to establish micro-habit loops</p>
-              </div>
-              <span className="text-xs font-mono font-bold text-violet-600 bg-violet-50 px-2.5 py-1 rounded-full">
-                {Object.values(checklist).filter(Boolean).length}/4 Done
-              </span>
-            </div>
-
-            <div className="w-full bg-slate-100 rounded-full h-1.5 mb-4">
-              <div 
-                className="bg-gradient-to-r from-violet-500 to-indigo-600 h-1.5 rounded-full transition-all duration-300"
-                style={{ width: `${(Object.values(checklist).filter(Boolean).length / 4) * 100}%` }}
-              ></div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="checklist-items-grid">
-              <button
-                type="button"
-                onClick={() => toggleChecklistItem('logMood')}
-                id="chk-item-mood"
-                className={`p-3 rounded-xl border text-left flex items-center gap-3 transition cursor-pointer ${
-                  checklist.logMood ? 'bg-violet-50/40 border-violet-200 text-violet-800' : 'border-slate-100 hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <input 
-                  type="checkbox" 
-                  checked={checklist.logMood} 
-                  readOnly 
-                  className="rounded-xs accent-violet-600 cursor-pointer pointer-events-none"
-                />
-                <span className="text-xs font-sans font-semibold">Log Daily Mood State</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => toggleChecklistItem('doBreathing')}
-                id="chk-item-breathing"
-                className={`p-3 rounded-xl border text-left flex items-center gap-3 transition cursor-pointer ${
-                  checklist.doBreathing ? 'bg-violet-50/40 border-violet-200 text-violet-800' : 'border-slate-100 hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <input 
-                  type="checkbox" 
-                  checked={checklist.doBreathing} 
-                  readOnly 
-                  className="rounded-xs accent-violet-600 cursor-pointer pointer-events-none"
-                />
-                <span className="text-xs font-sans font-semibold">Complete Breathing Cycle</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => toggleChecklistItem('chatAI')}
-                id="chk-item-chatai"
-                className={`p-3 rounded-xl border text-left flex items-center gap-3 transition cursor-pointer ${
-                  checklist.chatAI ? 'bg-violet-50/40 border-violet-200 text-violet-800' : 'border-slate-100 hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <input 
-                  type="checkbox" 
-                  checked={checklist.chatAI} 
-                  readOnly 
-                  className="rounded-xs accent-violet-600 cursor-pointer pointer-events-none"
-                />
-                <span className="text-xs font-sans font-semibold">Chat with AI Guide</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => toggleChecklistItem('writeJournal')}
-                id="chk-item-journal"
-                className={`p-3 rounded-xl border text-left flex items-center gap-3 transition cursor-pointer ${
-                  checklist.writeJournal ? 'bg-violet-50/40 border-violet-200 text-violet-800' : 'border-slate-100 hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <input 
-                  type="checkbox" 
-                  checked={checklist.writeJournal} 
-                  readOnly 
-                  className="rounded-xs accent-violet-600 cursor-pointer pointer-events-none"
-                />
-                <span className="text-xs font-sans font-semibold">Write Self-Reflection</span>
-              </button>
-            </div>
-          </div>
-
-=======
->>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
           {/* Quick Actions Panel */}
           <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-xs" id="quick-actions-panel">
             <h2 className="font-sans font-bold text-lg text-slate-800 mb-4">Wellness Core Actions</h2>
@@ -609,15 +456,9 @@ export default function Dashboard({ user, todayMood, onRecordMood, onNavigate, t
           <div className="p-6 bg-rose-50/50 border border-rose-100 rounded-3xl" id="daily-inspirational-card">
             <span className="text-[10px] font-mono font-bold text-rose-500 uppercase tracking-wider block">Empathetic Affirmation</span>
             <p className="font-sans text-sm text-rose-800 italic mt-2 leading-relaxed">
-<<<<<<< HEAD
-              &ldquo;{dailyQuote.text}&rdquo;
-            </p>
-            <span className="block mt-2 text-xs font-sans text-rose-500 font-semibold">— {dailyQuote.author}</span>
-=======
               &ldquo;Owning our story and loving ourselves through that process is the bravest thing that we will ever do. Every emotional ripple is part of your human story.&rdquo;
             </p>
             <span className="block mt-2 text-xs font-sans text-rose-500 font-semibold">— Brené Brown</span>
->>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
           </div>
         </div>
 

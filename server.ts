@@ -10,18 +10,16 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { db } from './src/db/dbManager';
 import { MoodType } from './src/types';
 
-// API Key setup from Secrets environment variables
-const apiKey = process.env.GEMINI_API_KEY;
-
 // Lazy-loaded GenAI Client
 let genAIClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI {
-  if (!apiKey) {
+  const currentKey = process.env.GEMINI_API_KEY;
+  if (!currentKey) {
     throw new Error('GEMINI_API_KEY environment variable is requested. Please set it in Settings > Secrets.');
   }
   if (!genAIClient) {
     genAIClient = new GoogleGenAI({
-      apiKey: apiKey,
+      apiKey: currentKey,
       httpOptions: {
         headers: {
           'User-Agent': 'aistudio-build',
@@ -752,38 +750,6 @@ app.post('/api/meditation/complete', authMiddleware, (req: AuthenticatedRequest,
   }
 });
 
-<<<<<<< HEAD
-// Simple backend health and info endpoints for local ownership
-app.get('/api/health', (req: Request, res: Response) => {
-  res.json({
-    status: 'ok',
-    uptimeSeconds: process.uptime(),
-    timestamp: new Date().toISOString(),
-    nodeVersion: process.version,
-    platform: process.platform,
-    env: process.env.NODE_ENV || 'development',
-  });
-});
-
-app.get('/api/backend/info', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
-  res.json({
-    service: 'Mind Mood AI Local Backend',
-    userId: req.userId,
-    authenticatedUser: req.user,
-    supportRoutes: [
-      '/api/auth/profile',
-      '/api/mood/today',
-      '/api/mood/history',
-      '/api/journal/all',
-      '/api/community',
-      '/api/notifications',
-      '/api/wellness/score',
-    ],
-  });
-});
-
-=======
->>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
 
 // ==================== FRONTEND OR VITE INTEGRATION ====================
 

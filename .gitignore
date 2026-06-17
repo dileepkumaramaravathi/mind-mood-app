@@ -6,7 +6,3 @@ coverage/
 *.log
 .env*
 !.env.example
-<<<<<<< HEAD
-~$*
-=======
->>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3

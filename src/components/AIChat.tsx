@@ -20,7 +20,7 @@ export default function AIChat({ token }: AIChatProps) {
   const [detectedEmotion, setDetectedEmotion] = useState<string | null>(null);
   const [copingTips, setCopingTips] = useState<string[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const [showScanner, setShowScanner] = useState(true);
+  const [showScanner, setShowScanner] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
 

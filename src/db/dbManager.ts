@@ -1,11 +1,13 @@
 /**
  * @license
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.5
  */
 
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 import { User, Mood, JournalEntry, MoodType, ChatMessage, CommunityItem, NotificationItem } from '../types';
 
 const DB_FILE = path.join(process.cwd(), 'data_store.json');
@@ -24,6 +26,32 @@ interface DatabaseSchema {
   notifications: NotificationItem[];
 }
 
+// Global Firebase Firestore reference
+let firestore: any = null;
+
+try {
+  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(configPath)) {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    let app;
+    const apps = getApps();
+    if (apps.length === 0) {
+      app = initializeApp({
+        projectId: config.projectId,
+      });
+    } else {
+      app = apps[0];
+    }
+    // Initialize firestore with the custom DB ID from AI Studio setup
+    firestore = getFirestore(app, config.firestoreDatabaseId || '(default)');
+    console.log('Firebase Admin SDK initialized successfully with DB ID:', config.firestoreDatabaseId);
+  } else {
+    console.warn('firebase-applet-config.json not found, falling back to local memory database.');
+  }
+} catch (error) {
+  console.error('Failed to initialize Firebase Admin, using local JSON fallback:', error);
+}
+
 class DBManager {
   private data: DatabaseSchema = {
     users: {},
@@ -34,8 +62,11 @@ class DBManager {
     notifications: [],
   };
 
+  private resetCodes: { [email: string]: string } = {};
+
   constructor() {
     this.load();
+    this.syncFromFirestore();
   }
 
   private load() {
@@ -44,7 +75,6 @@ class DBManager {
         const contents = fs.readFileSync(DB_FILE, 'utf-8');
         this.data = JSON.parse(contents);
         
-        // Ensure new features arrays exist to prevent runtime errors with older assets
         if (!this.data.community) this.data.community = [];
         if (!this.data.notifications) this.data.notifications = [];
       } else {
@@ -63,12 +93,82 @@ class DBManager {
     }
   }
 
-
   private save() {
     try {
       fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
     } catch (e) {
       console.error('Failed to save database', e);
+    }
+  }
+
+  /**
+   * Syncs entire dataset asynchronously from Cloud Firestore on backend start.
+   */
+  public async syncFromFirestore() {
+    if (!firestore) return;
+    try {
+      console.log('Initiating database sync from Cloud Firestore...');
+      
+      // 1. Sync Users
+      const usersSnap = await firestore.collection('users').get();
+      usersSnap.forEach((doc: any) => {
+        this.data.users[doc.id] = doc.data();
+      });
+
+      // 2. Sync Moods
+      const moodsSnap = await firestore.collection('moods').get();
+      this.data.moods = [];
+      moodsSnap.forEach((doc: any) => {
+        this.data.moods.push(doc.data());
+      });
+
+      // 3. Sync Journals
+      const journalsSnap = await firestore.collection('journals').get();
+      this.data.journals = [];
+      journalsSnap.forEach((doc: any) => {
+        this.data.journals.push(doc.data());
+      });
+
+      // 4. Sync Chats
+      const chatsSnap = await firestore.collection('chats').get();
+      this.data.chats = {};
+      chatsSnap.forEach((doc: any) => {
+        const msg = doc.data();
+        if (msg.userId) {
+          if (!this.data.chats[msg.userId]) {
+            this.data.chats[msg.userId] = [];
+          }
+          this.data.chats[msg.userId].push({
+            id: msg.id,
+            sender: msg.sender,
+            text: msg.text,
+            timestamp: msg.timestamp
+          });
+        }
+      });
+      // Sort message indices
+      Object.keys(this.data.chats).forEach((userId) => {
+        this.data.chats[userId].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      });
+
+      // 5. Sync Community
+      const communitySnap = await firestore.collection('community').get();
+      this.data.community = [];
+      communitySnap.forEach((doc: any) => {
+        this.data.community.push(doc.data());
+      });
+
+      // 6. Sync Notifications
+      const notifSnap = await firestore.collection('notifications').get();
+      this.data.notifications = [];
+      notifSnap.forEach((doc: any) => {
+        this.data.notifications.push(doc.data());
+      });
+
+      console.log('Database synced successfully from Cloud Firestore.');
+      this.save(); // Back up in local data_store.json
+    } catch (error) {
+      console.error('Failed to sync from Firestore. Falling back to local data:', error);
     }
   }
 
@@ -102,7 +202,13 @@ class DBManager {
     this.data.users[id] = userRecord;
     this.save();
 
-    // Generate simple token string (User ID serves as simple persistent token)
+    // Sync to Firestore asynchronously
+    if (firestore) {
+      firestore.collection('users').doc(id).set(userRecord).catch((e: any) => {
+        console.error('Firestore user save failed:', e);
+      });
+    }
+
     return {
       user: {
         id: userRecord.id,
@@ -125,7 +231,6 @@ class DBManager {
     const hash = this.hashPassword(password, userRecord.passwordSalt);
     if (hash !== userRecord.passwordHash) return null;
 
-    // Return user with token
     return {
       user: {
         id: userRecord.id,
@@ -151,9 +256,6 @@ class DBManager {
       createdAt: record.createdAt,
     };
   }
-
-  // --- Password Reset Helper Methods ---
-  private resetCodes: { [email: string]: string } = {};
 
   public generateResetCode(email: string): string | null {
     const emailLower = email.toLowerCase().trim();
@@ -186,13 +288,21 @@ class DBManager {
     userRecord.passwordSalt = salt;
     userRecord.passwordHash = passwordHash;
     this.save();
+
+    // Sync updated keys to Firestore
+    if (firestore) {
+      firestore.collection('users').doc(userRecord.id).set(userRecord, { merge: true }).catch((e: any) => {
+        console.error('Firestore password update failed:', e);
+      });
+    }
+
     return true;
   }
 
   // --- Mood Methods ---
   public addMood(userId: string, moodType: MoodType, intensity: number, note: string): Mood {
     const id = crypto.randomUUID();
-    const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD in local/server time
+    const todayStr = new Date().toISOString().split('T')[0];
 
     const newMood: Mood = {
       id,
@@ -213,21 +323,33 @@ class DBManager {
       const lastActive = user.lastActiveDate;
 
       if (!lastActive) {
-        // First mood ever
         user.moodStreak = 1;
       } else if (lastActive === yesterdayStr) {
-        // Continued from yesterday
         user.moodStreak += 1;
       } else if (lastActive === todayStr) {
-        // Already recorded mood today, streak stays the same
+        // Unchanged
       } else {
-        // Break in streak, reset to 1
         user.moodStreak = 1;
       }
       user.lastActiveDate = todayStr;
+
+      // Sync user object update
+      if (firestore) {
+        firestore.collection('users').doc(userId).set(user, { merge: true }).catch((e: any) => {
+          console.error('Firestore user streak sync failed:', e);
+        });
+      }
     }
 
     this.save();
+
+    // Sync Mood creation to Firestore
+    if (firestore) {
+      firestore.collection('moods').doc(id).set(newMood).catch((e: any) => {
+        console.error('Firestore mood save failed:', e);
+      });
+    }
+
     return newMood;
   }
 
@@ -262,6 +384,14 @@ class DBManager {
 
     this.data.journals.push(newEntry);
     this.save();
+
+    // Sync to Firestore
+    if (firestore) {
+      firestore.collection('journals').doc(id).set(newEntry).catch((e: any) => {
+        console.error('Firestore journal save failed:', e);
+      });
+    }
+
     return newEntry;
   }
 
@@ -277,6 +407,13 @@ class DBManager {
     const deleted = this.data.journals.length < initialLen;
     if (deleted) {
       this.save();
+
+      // Sync deletion
+      if (firestore) {
+        firestore.collection('journals').doc(journalId).delete().catch((e: any) => {
+          console.error('Firestore journal delete failed:', e);
+        });
+      }
     }
     return deleted;
   }
@@ -297,19 +434,44 @@ class DBManager {
       timestamp: new Date().toISOString(),
     };
     
-    // Store last 40 messages to avoid over-filling file, while keeping great memory
     this.data.chats[userId].push(newMessage);
     if (this.data.chats[userId].length > 40) {
       this.data.chats[userId] = this.data.chats[userId].slice(-40);
     }
     
     this.save();
+
+    // Sync Chat item to Firestore
+    if (firestore) {
+      firestore.collection('chats').doc(newMessage.id).set({
+        ...newMessage,
+        userId
+      }).catch((e: any) => {
+        console.error('Firestore chat message save failed:', e);
+      });
+    }
+
     return newMessage;
   }
 
   public clearChatHistory(userId: string): void {
     this.data.chats[userId] = [];
     this.save();
+
+    // Sync batch deletion
+    if (firestore) {
+      firestore.collection('chats').where('userId', '==', userId).get()
+        .then((snapshot: any) => {
+          const batch = firestore.batch();
+          snapshot.forEach((doc: any) => {
+            batch.delete(doc.ref);
+          });
+          return batch.commit();
+        })
+        .catch((e: any) => {
+          console.error('Firestore chats clear failed:', e);
+        });
+    }
   }
 
   // --- Community Affirmation Methods ---
@@ -336,6 +498,14 @@ class DBManager {
     }
     this.data.community.push(newPost);
     this.save();
+
+    // Sync to Firestore
+    if (firestore) {
+      firestore.collection('community').doc(id).set(newPost).catch((e: any) => {
+        console.error('Firestore community post save failed:', e);
+      });
+    }
+
     return newPost;
   }
 
@@ -347,13 +517,21 @@ class DBManager {
     if (!post.likes) post.likes = [];
     const idx = post.likes.indexOf(userId);
     if (idx !== -1) {
-      // Unlike
       post.likes.splice(idx, 1);
     } else {
-      // Like
       post.likes.push(userId);
     }
     this.save();
+
+    // Sync to Firestore
+    if (firestore) {
+      firestore.collection('community').doc(postId).set({
+        likes: post.likes
+      }, { merge: true }).catch((e: any) => {
+        console.error('Firestore community like update failed:', e);
+      });
+    }
+
     return post;
   }
 
@@ -387,6 +565,14 @@ class DBManager {
     }
     this.data.notifications.push(newNotif);
     this.save();
+
+    // Sync to Firestore
+    if (firestore) {
+      firestore.collection('notifications').doc(id).set(newNotif).catch((e: any) => {
+        console.error('Firestore notification save failed:', e);
+      });
+    }
+
     return newNotif;
   }
 
@@ -396,6 +582,16 @@ class DBManager {
     if (notif) {
       notif.read = true;
       this.save();
+
+      // Sync to Firestore
+      if (firestore) {
+        firestore.collection('notifications').doc(id).set({
+          read: true
+        }, { merge: true }).catch((e: any) => {
+          console.error('Firestore notification set read failed:', e);
+        });
+      }
+
       return true;
     }
     return false;
@@ -405,6 +601,21 @@ class DBManager {
     if (!this.data.notifications) this.data.notifications = [];
     this.data.notifications = this.data.notifications.filter((n) => n.userId !== userId);
     this.save();
+
+    // Sync batch deletion
+    if (firestore) {
+      firestore.collection('notifications').where('userId', '==', userId).get()
+        .then((snapshot: any) => {
+          const batch = firestore.batch();
+          snapshot.forEach((doc: any) => {
+            batch.delete(doc.ref);
+          });
+          return batch.commit();
+        })
+        .catch((e: any) => {
+          console.error('Firestore notifications clear failed:', e);
+        });
+    }
   }
 }
 
