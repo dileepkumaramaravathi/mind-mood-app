@@ -7,6 +7,23 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Brain, Mail, Lock, User, Eye, EyeOff, Sparkles, AlertCircle, CheckSquare } from 'lucide-react';
 
+const safeResponseJson = async (response: Response, fallbackError: string): Promise<any> => {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const text = await response.text();
+    if (text.includes('<!DOCTYPE html>') || text.includes('<html') || text.includes('Google Account') || text.includes('Sign in')) {
+      throw new Error("You are currently opening the PRIVATE development URL. On mobile devices, please open the PUBLIC 'Shared App URL' (the public preview link) instead. The private link requires an active developer session and gets blocked by Cloud Run.");
+    }
+    throw new Error(`${fallbackError} (Received status ${response.status})`);
+  }
+  try {
+    const parsed = await response.json();
+    return parsed;
+  } catch (err) {
+    throw new Error(`${fallbackError} (Invalid response content)`);
+  }
+};
+
 interface AuthPageProps {
   onAuthSuccess: (token: string, user: any) => void;
   onBackToLanding: () => void;
@@ -52,10 +69,7 @@ export default function AuthPage({ onAuthSuccess, onBackToLanding, initialMode =
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email }),
           });
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.error || 'Request failed.');
-          }
+          const data = await safeResponseJson(response, 'Forgot password request failed');
           setSimulatedCode(data.code);
           setResetStep(2);
         } else {
@@ -64,10 +78,7 @@ export default function AuthPage({ onAuthSuccess, onBackToLanding, initialMode =
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, code: verificationCode, newPassword }),
           });
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.error || 'Password reset failed.');
-          }
+          await safeResponseJson(response, 'Password reset failed');
           setSuccessMessage('Your password has been reset successfully! Please sign in with your new credentials below.');
           setMode('login');
           setResetStep(1);
@@ -96,10 +107,7 @@ export default function AuthPage({ onAuthSuccess, onBackToLanding, initialMode =
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Something went wrong');
-      }
+      const data = await safeResponseJson(response, mode === 'login' ? 'Login failed' : 'Registration failed');
 
       // Successful Auth
       onAuthSuccess(data.token, data.user);
