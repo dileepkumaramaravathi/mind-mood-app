@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mind-mood-v1';
+const CACHE_NAME = 'mind-mood-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -34,7 +34,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetching: Cache-first strategy for static assets, network-first fallback for navigation
+// Fetching: Reliable Network-First for scripts & documents to enable instant updates, Cache-First for static assets
 self.addEventListener('fetch', (event) => {
   // We only intercept standard GET requests
   if (event.request.method !== 'GET') return;
@@ -52,6 +52,34 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-First for scripts & page navigations to override aggressive local caching on updates
+  const isScriptOrNavigate = event.request.destination === 'script' || event.request.mode === 'navigate';
+
+  if (isScriptOrNavigate) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) return cachedResponse;
+            if (event.request.mode === 'navigate') {
+              return caches.match('/');
+            }
+          });
+        })
+    );
+    return;
+  }
+
+  // Cache-First strategy for images, styles, and fonts for high performance
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -60,9 +88,7 @@ self.addEventListener('fetch', (event) => {
 
       return fetch(event.request)
         .then((networkResponse) => {
-          // Keep dynamic styles, scripts and images cached for resilience
           const isStaticAsset = 
-            event.request.destination === 'script' || 
             event.request.destination === 'style' || 
             event.request.destination === 'image' ||
             event.request.destination === 'font';
@@ -74,12 +100,6 @@ self.addEventListener('fetch', (event) => {
             });
           }
           return networkResponse;
-        })
-        .catch(() => {
-          // If network fails completely and user is navigates, serve SPA shell '/'
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
         });
     })
   );

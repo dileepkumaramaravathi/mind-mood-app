@@ -13,11 +13,15 @@ interface LandingPageProps {
 }
 
 export default function LandingPage({ onGetStarted, onLoginClick }: LandingPageProps) {
+  const getPublicOrigin = () => {
+    return window.location.origin.replace('-dev-', '-pre-');
+  };
+
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
-    const currentOrigin = window.location.origin;
-    navigator.clipboard.writeText(currentOrigin);
+    const publicOrigin = getPublicOrigin();
+    navigator.clipboard.writeText(publicOrigin);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -299,11 +303,11 @@ export default function LandingPage({ onGetStarted, onLoginClick }: LandingPageP
 
               {/* QR Code generator box right of center */}
               <div className="md:col-span-5 flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-100/80">
-                <div className="bg-white p-3 rounded-xl shadow-xs border border-slate-100">
+                <div className="bg-white p-3 rounded-xl shadow-xs border border-slate-100 font-sans text-center">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(window.location.origin)}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(getPublicOrigin())}`}
                     alt="Scan To Open On Mobile"
-                    className="w-40 h-40 object-contain rounded-lg"
+                    className="w-40 h-40 object-contain rounded-lg mx-auto"
                     referrerPolicy="no-referrer"
                   />
                 </div>
