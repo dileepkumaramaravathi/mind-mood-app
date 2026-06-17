@@ -20,6 +20,12 @@ import Community from './components/Community';
 import Notifications from './components/Notifications';
 import WellnessScoreView from './components/WellnessScoreView';
 import { Mood, MoodType, User } from './types';
+import { Smartphone, Download, Info } from 'lucide-react';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 type ActiveView = 'landing' | 'login' | 'register' | 'dashboard' | 'chat' | 'journal' | 'analytics' | 'profile' | 'meditation' | 'community' | 'notifications' | 'wellness';
 
@@ -31,6 +37,31 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // PWA states
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(() => {
+    const closed = localStorage.getItem('pwa_banner_closed');
+    return closed !== 'true';
+  });
+  const [showManualGuide, setShowManualGuide] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  // Monitor deferred install prompt & standalone status
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+
+    const checkStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+    setIsStandalone(!!checkStandalone);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    };
+  }, []);
 
   // Load token + user on launch
   useEffect(() => {
@@ -369,6 +400,129 @@ export default function App() {
             <span>{new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span>
           </div>
         </div>
+
+        {/* PWA Direct Installation Assistant Banner */}
+        {showInstallBanner && !isStandalone && (
+          <div className={`mb-6 p-4 rounded-2xl border transition-all duration-300 ${
+            isDarkMode 
+              ? 'bg-slate-800/80 border-slate-700/80 text-slate-100' 
+              : 'bg-[#6366f1]/5 border-[#6366f1]/15 text-indigo-950'
+          }`} id="pwa-install-banner">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className={`p-2 rounded-xl shrink-0 ${isDarkMode ? 'bg-indigo-950/80 text-indigo-400' : 'bg-indigo-100/80 text-indigo-700'}`}>
+                  <Smartphone className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight flex items-center gap-1.5">
+                    Install Mind Mood AI on your Phone
+                    <span className="bg-emerald-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider animate-bounce">PWA</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl leading-relaxed">
+                    Install this companion directly on your phone's home screen for seamless offline tracking, extremely fast loading times, and a full screen native app experience.
+                  </p>
+                  
+                  {/* Action row */}
+                  <div className="flex flex-wrap gap-2.5 mt-3">
+                    {deferredPrompt ? (
+                      <button
+                        onClick={async () => {
+                          deferredPrompt.prompt();
+                          const choice = await deferredPrompt.userChoice;
+                          if (choice.outcome === 'accepted') {
+                            setDeferredPrompt(null);
+                          }
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-sans font-bold text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                      >
+                        <Download className="w-4 h-4" />
+                        Install Automatically
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowManualGuide(!showManualGuide)}
+                        className={`font-sans font-bold text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 transition cursor-pointer ${
+                          isDarkMode 
+                            ? 'bg-slate-705 bg-slate-700 hover:bg-slate-600 text-slate-200' 
+                            : 'bg-white hover:bg-slate-100 border border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <Info className="w-4 h-4 text-indigo-500" />
+                        {showManualGuide ? 'Hide Guide' : 'How to Install on Mobile'}
+                      </button>
+                    )}
+                    
+                    {!deferredPrompt && (
+                      <button
+                        onClick={() => setShowManualGuide(!showManualGuide)}
+                        className="text-xs text-indigo-600 hover:underline font-bold self-center px-1 py-1"
+                      >
+                        Learn more
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => {
+                  setShowInstallBanner(false);
+                  localStorage.setItem('pwa_banner_closed', 'true');
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition shrink-0 cursor-pointer"
+                title="Dismiss banner"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Step-by-step collapsible instructions */}
+            {showManualGuide && (
+              <div className={`mt-4 p-4 rounded-xl border border-dashed text-xs space-y-4 transition-all duration-300 ${
+                isDarkMode ? 'bg-slate-900/60 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-600'
+              }`}>
+                {/* In-App Browser limitation explanation */}
+                <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 p-3 rounded-lg flex gap-2.5 items-start">
+                  <span className="text-base leading-none">⚠️</span>
+                  <div>
+                    <strong className="font-bold text-slate-800 dark:text-amber-300">Opening from WhatsApp or social media?</strong>
+                    <p className="mt-0.5 leading-relaxed text-[11px]">
+                      In-app browsers do not support downloading apps. To install this, copy your link and open it manually inside a real browser: <span className="font-semibold underline">Google Chrome</span> on Android or <span className="font-semibold underline">Safari</span> on iPhone.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Android Instruction Card */}
+                  <div className="space-y-2">
+                    <h4 className="font-bold flex items-center gap-1.5 text-slate-850 dark:text-white">
+                      <span>🤖</span> Android Devices (Google Chrome)
+                    </h4>
+                    <ol className="list-decimal pl-4.5 space-y-1.5 text-slate-500 dark:text-slate-400 leading-relaxed">
+                      <li>Copy your Shared App URL and open the <strong className="text-slate-700 dark:text-slate-300">Google Chrome</strong> browser.</li>
+                      <li>Paste the URL and load the website.</li>
+                      <li>Tap the Chrome menu button <strong className="text-slate-700 dark:text-slate-300">⋮ (three dots)</strong> in the top-right corner.</li>
+                      <li>Select <strong className="text-indigo-600 dark:text-indigo-400">"Install app"</strong> or <strong className="text-indigo-600 dark:text-indigo-400">"Add to Home screen"</strong>.</li>
+                    </ol>
+                  </div>
+
+                  {/* iOS Instruction Card */}
+                  <div className="space-y-2">
+                    <h4 className="font-bold flex items-center gap-1.5 text-slate-850 dark:text-white">
+                      <span>🍏</span> iPhones & iPads (Apple Safari)
+                    </h4>
+                    <ol className="list-decimal pl-4.5 space-y-1.5 text-slate-500 dark:text-slate-400 leading-relaxed">
+                      <li>Copy your Shared App URL and open the official <strong className="text-slate-700 dark:text-slate-300">Safari</strong> app.</li>
+                      <li>Paste the URL and load the website.</li>
+                      <li>Tap the <strong className="text-slate-700 dark:text-slate-300">Share</strong> icon (the square box with an arrow pointing up) in the bottom navigation.</li>
+                      <li>Scroll down the list and select <strong className="text-indigo-600 dark:text-indigo-400">"Add to Home Screen"</strong>.</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Custom Tab rendering */}
         <div id="subview-portal">

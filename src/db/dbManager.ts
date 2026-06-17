@@ -52,6 +52,46 @@ try {
   console.error('Failed to initialize Firebase Admin, using local JSON fallback:', error);
 }
 
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, userId?: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    operationType,
+    path,
+    authInfo: {
+      userId: userId || null,
+      email: null,
+      emailVerified: null,
+      isAnonymous: null,
+      tenantId: null,
+    }
+  };
+  const stringified = JSON.stringify(errInfo);
+  console.warn('Firestore Operation Warning (Local JSON serving as source-of-truth):', stringified);
+  // Log the warning but do NOT throw to ensure backend never fails/crashes
+}
+
 class DBManager {
   private data: DatabaseSchema = {
     users: {},
@@ -103,6 +143,8 @@ class DBManager {
 
   /**
    * Syncs entire dataset asynchronously from Cloud Firestore on backend start.
+   * Performs a robust two-way merge so existing local data gets safely uploaded
+   * if Firestore was empty, and Firestore data gets fetched if present.
    */
   public async syncFromFirestore() {
     if (!firestore) return;
@@ -110,35 +152,82 @@ class DBManager {
       console.log('Initiating database sync from Cloud Firestore...');
       
       // 1. Sync Users
+      const firestoreUsers: { [id: string]: UserRecord } = {};
       const usersSnap = await firestore.collection('users').get();
       usersSnap.forEach((doc: any) => {
-        this.data.users[doc.id] = doc.data();
+        firestoreUsers[doc.id] = doc.data() as UserRecord;
       });
+
+      // Upload local users that don't exist in Firestore
+      for (const [id, localUser] of Object.entries(this.data.users)) {
+        if (!firestoreUsers[id]) {
+          console.log(`Syncing user to Firestore: ${localUser.email}`);
+          await firestore.collection('users').doc(id).set(localUser).catch((err: any) => {
+            console.error(`Error uploading user ${id}:`, err);
+          });
+          firestoreUsers[id] = localUser;
+        }
+      }
+      this.data.users = firestoreUsers;
 
       // 2. Sync Moods
+      const firestoreMoods: Mood[] = [];
+      const firestoreMoodsIds = new Set<string>();
       const moodsSnap = await firestore.collection('moods').get();
-      this.data.moods = [];
       moodsSnap.forEach((doc: any) => {
-        this.data.moods.push(doc.data());
+        const item = doc.data() as Mood;
+        firestoreMoods.push(item);
+        if (item.id) firestoreMoodsIds.add(item.id);
       });
+
+      // Upload local moods that don't exist in Firestore
+      for (const localMood of this.data.moods) {
+        if (localMood.id && !firestoreMoodsIds.has(localMood.id)) {
+          console.log(`Syncing mood to Firestore: ${localMood.id}`);
+          await firestore.collection('moods').doc(localMood.id).set(localMood).catch((err: any) => {
+            console.error(`Error uploading mood ${localMood.id}:`, err);
+          });
+          firestoreMoods.push(localMood);
+          firestoreMoodsIds.add(localMood.id);
+        }
+      }
+      this.data.moods = firestoreMoods;
 
       // 3. Sync Journals
+      const firestoreJournals: JournalEntry[] = [];
+      const firestoreJournalsIds = new Set<string>();
       const journalsSnap = await firestore.collection('journals').get();
-      this.data.journals = [];
       journalsSnap.forEach((doc: any) => {
-        this.data.journals.push(doc.data());
+        const item = doc.data() as JournalEntry;
+        firestoreJournals.push(item);
+        if (item.id) firestoreJournalsIds.add(item.id);
       });
 
+      // Upload local journals that don't exist in Firestore
+      for (const localJournal of this.data.journals) {
+        if (localJournal.id && !firestoreJournalsIds.has(localJournal.id)) {
+          console.log(`Syncing journal to Firestore: ${localJournal.id}`);
+          await firestore.collection('journals').doc(localJournal.id).set(localJournal).catch((err: any) => {
+            console.error(`Error uploading journal ${localJournal.id}:`, err);
+          });
+          firestoreJournals.push(localJournal);
+          firestoreJournalsIds.add(localJournal.id);
+        }
+      }
+      this.data.journals = firestoreJournals;
+
       // 4. Sync Chats
+      const firestoreChats: { [userId: string]: ChatMessage[] } = {};
+      const firestoreChatIds = new Set<string>();
       const chatsSnap = await firestore.collection('chats').get();
-      this.data.chats = {};
       chatsSnap.forEach((doc: any) => {
         const msg = doc.data();
-        if (msg.userId) {
-          if (!this.data.chats[msg.userId]) {
-            this.data.chats[msg.userId] = [];
+        if (msg.userId && msg.id) {
+          firestoreChatIds.add(msg.id);
+          if (!firestoreChats[msg.userId]) {
+            firestoreChats[msg.userId] = [];
           }
-          this.data.chats[msg.userId].push({
+          firestoreChats[msg.userId].push({
             id: msg.id,
             sender: msg.sender,
             text: msg.text,
@@ -146,26 +235,80 @@ class DBManager {
           });
         }
       });
-      // Sort message indices
+
+      // Upload local chats that don't exist in Firestore
+      for (const [userId, messages] of Object.entries(this.data.chats)) {
+        for (const localMsg of messages) {
+          if (localMsg.id && !firestoreChatIds.has(localMsg.id)) {
+            console.log(`Syncing chat message to Firestore: ${localMsg.id}`);
+            await firestore.collection('chats').doc(localMsg.id).set({
+              ...localMsg,
+              userId
+            }).catch((err: any) => {
+              console.error(`Error uploading chat message ${localMsg.id}:`, err);
+            });
+            if (!firestoreChats[userId]) {
+              firestoreChats[userId] = [];
+            }
+            firestoreChats[userId].push(localMsg);
+            firestoreChatIds.add(localMsg.id);
+          }
+        }
+      }
+      this.data.chats = firestoreChats;
+
+      // Sort message indices by timestamp
       Object.keys(this.data.chats).forEach((userId) => {
         this.data.chats[userId].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       });
 
       // 5. Sync Community
+      const firestoreCommunity: CommunityItem[] = [];
+      const firestoreCommunityIds = new Set<string>();
       const communitySnap = await firestore.collection('community').get();
-      this.data.community = [];
       communitySnap.forEach((doc: any) => {
-        this.data.community.push(doc.data());
+        const item = doc.data() as CommunityItem;
+        firestoreCommunity.push(item);
+        if (item.id) firestoreCommunityIds.add(item.id);
       });
+
+      // Upload local community posts that don't exist in Firestore
+      for (const localPost of this.data.community) {
+        if (localPost.id && !firestoreCommunityIds.has(localPost.id)) {
+          console.log(`Syncing community post to Firestore: ${localPost.id}`);
+          await firestore.collection('community').doc(localPost.id).set(localPost).catch((err: any) => {
+            console.error(`Error uploading post ${localPost.id}:`, err);
+          });
+          firestoreCommunity.push(localPost);
+          firestoreCommunityIds.add(localPost.id);
+        }
+      }
+      this.data.community = firestoreCommunity;
 
       // 6. Sync Notifications
+      const firestoreNotifs: NotificationItem[] = [];
+      const firestoreNotifIds = new Set<string>();
       const notifSnap = await firestore.collection('notifications').get();
-      this.data.notifications = [];
       notifSnap.forEach((doc: any) => {
-        this.data.notifications.push(doc.data());
+        const item = doc.data() as NotificationItem;
+        firestoreNotifs.push(item);
+        if (item.id) firestoreNotifIds.add(item.id);
       });
 
-      console.log('Database synced successfully from Cloud Firestore.');
+      // Upload local notifications that don't exist in Firestore
+      for (const localNotif of this.data.notifications) {
+        if (localNotif.id && !firestoreNotifIds.has(localNotif.id)) {
+          console.log(`Syncing notification to Firestore: ${localNotif.id}`);
+          await firestore.collection('notifications').doc(localNotif.id).set(localNotif).catch((err: any) => {
+            console.error(`Error uploading notification ${localNotif.id}:`, err);
+          });
+          firestoreNotifs.push(localNotif);
+          firestoreNotifIds.add(localNotif.id);
+        }
+      }
+      this.data.notifications = firestoreNotifs;
+
+      console.log('Database synced successfully (two-way merge) from Cloud Firestore.');
       this.save(); // Back up in local data_store.json
     } catch (error) {
       console.error('Failed to sync from Firestore. Falling back to local data:', error);
@@ -205,7 +348,7 @@ class DBManager {
     // Sync to Firestore asynchronously
     if (firestore) {
       firestore.collection('users').doc(id).set(userRecord).catch((e: any) => {
-        console.error('Firestore user save failed:', e);
+        handleFirestoreError(e, OperationType.CREATE, `users/${id}`, id);
       });
     }
 
@@ -292,7 +435,7 @@ class DBManager {
     // Sync updated keys to Firestore
     if (firestore) {
       firestore.collection('users').doc(userRecord.id).set(userRecord, { merge: true }).catch((e: any) => {
-        console.error('Firestore password update failed:', e);
+        handleFirestoreError(e, OperationType.UPDATE, `users/${userRecord.id}`, userRecord.id);
       });
     }
 
@@ -336,7 +479,7 @@ class DBManager {
       // Sync user object update
       if (firestore) {
         firestore.collection('users').doc(userId).set(user, { merge: true }).catch((e: any) => {
-          console.error('Firestore user streak sync failed:', e);
+          handleFirestoreError(e, OperationType.UPDATE, `users/${userId}`, userId);
         });
       }
     }
@@ -346,7 +489,7 @@ class DBManager {
     // Sync Mood creation to Firestore
     if (firestore) {
       firestore.collection('moods').doc(id).set(newMood).catch((e: any) => {
-        console.error('Firestore mood save failed:', e);
+        handleFirestoreError(e, OperationType.CREATE, `moods/${id}`, userId);
       });
     }
 
@@ -388,7 +531,7 @@ class DBManager {
     // Sync to Firestore
     if (firestore) {
       firestore.collection('journals').doc(id).set(newEntry).catch((e: any) => {
-        console.error('Firestore journal save failed:', e);
+        handleFirestoreError(e, OperationType.CREATE, `journals/${id}`, userId);
       });
     }
 
@@ -411,7 +554,7 @@ class DBManager {
       // Sync deletion
       if (firestore) {
         firestore.collection('journals').doc(journalId).delete().catch((e: any) => {
-          console.error('Firestore journal delete failed:', e);
+          handleFirestoreError(e, OperationType.DELETE, `journals/${journalId}`, userId);
         });
       }
     }
@@ -447,7 +590,7 @@ class DBManager {
         ...newMessage,
         userId
       }).catch((e: any) => {
-        console.error('Firestore chat message save failed:', e);
+        handleFirestoreError(e, OperationType.CREATE, `chats/${newMessage.id}`, userId);
       });
     }
 
@@ -502,7 +645,7 @@ class DBManager {
     // Sync to Firestore
     if (firestore) {
       firestore.collection('community').doc(id).set(newPost).catch((e: any) => {
-        console.error('Firestore community post save failed:', e);
+        handleFirestoreError(e, OperationType.CREATE, `community/${id}`, userId);
       });
     }
 
@@ -528,7 +671,7 @@ class DBManager {
       firestore.collection('community').doc(postId).set({
         likes: post.likes
       }, { merge: true }).catch((e: any) => {
-        console.error('Firestore community like update failed:', e);
+        handleFirestoreError(e, OperationType.UPDATE, `community/${postId}`, userId);
       });
     }
 
@@ -569,7 +712,7 @@ class DBManager {
     // Sync to Firestore
     if (firestore) {
       firestore.collection('notifications').doc(id).set(newNotif).catch((e: any) => {
-        console.error('Firestore notification save failed:', e);
+        handleFirestoreError(e, OperationType.CREATE, `notifications/${id}`, userId);
       });
     }
 
@@ -588,7 +731,7 @@ class DBManager {
         firestore.collection('notifications').doc(id).set({
           read: true
         }, { merge: true }).catch((e: any) => {
-          console.error('Firestore notification set read failed:', e);
+          handleFirestoreError(e, OperationType.UPDATE, `notifications/${id}`, userId);
         });
       }
 
