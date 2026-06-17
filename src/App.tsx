@@ -20,7 +20,7 @@ import Community from './components/Community';
 import Notifications from './components/Notifications';
 import WellnessScoreView from './components/WellnessScoreView';
 import { Mood, MoodType, User } from './types';
-import { Smartphone, Download, Info } from 'lucide-react';
+import { Smartphone, Download, Info, Copy, Check, RefreshCw } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -37,6 +37,28 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Private developer URL redirect / CORS interception tracking
+  const [privateUrlError, setPrivateUrlError] = useState(false);
+  const [copiedShared, setCopiedShared] = useState(false);
+
+  // Monitor deferred install prompt & standalone status
+  useEffect(() => {
+    const handleUrlError = () => {
+      setPrivateUrlError(true);
+    };
+    window.addEventListener('private-url-error', handleUrlError);
+    return () => {
+      window.removeEventListener('private-url-error', handleUrlError);
+    };
+  }, []);
+
+  const handleCopySharedLink = () => {
+    const publicUrl = window.location.origin.replace('-dev-', '-pre-');
+    navigator.clipboard.writeText(publicUrl);
+    setCopiedShared(true);
+    setTimeout(() => setCopiedShared(false), 2000);
+  };
 
   // PWA states
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -188,6 +210,66 @@ export default function App() {
     { id: 'notifications' as const, label: 'Notifications Feed', icon: Bell },
     { id: 'profile' as const, label: 'Profile & Settings', icon: UserIcon },
   ];
+
+  // Private Developer URL safety redirect guard
+  if (privateUrlError) {
+    const publicUrl = window.location.origin.replace('-dev-', '-pre-');
+    return (
+      <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9] flex items-center justify-center p-6 font-sans" id="private-url-error-view">
+        <div className="max-w-md w-full bg-slate-900/60 border border-slate-800/80 rounded-3xl p-8 shadow-2xl text-center space-y-6">
+          <div className="mx-auto w-16 h-16 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center text-3xl">
+            ⚠️
+          </div>
+          <h2 className="text-xl font-sans font-black tracking-tight text-white mb-2 leading-tight">
+            Private Link Navigation Error
+          </h2>
+          <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+            You opened a private development link which is blocked on remote devices/mobile or after session timeout. Please use the public, fully authorized preview link:
+          </p>
+          
+          <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 font-mono text-[11px] break-all select-all text-indigo-300">
+            {publicUrl}
+          </div>
+          
+          <div className="space-y-3">
+            <button
+              onClick={handleCopySharedLink}
+              id="copy-shared-url-btn"
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-sans font-bold text-xs transition active:scale-[0.98] cursor-pointer shadow-lg"
+            >
+              {copiedShared ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Shared URL Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy Public Shared URL
+                </>
+              )}
+            </button>
+            
+            <button
+              onClick={() => {
+                setPrivateUrlError(false);
+                window.location.reload();
+              }}
+              id="reload-btn"
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-sans font-bold text-xs transition cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Try Reconnecting
+            </button>
+          </div>
+          
+          <p className="text-[10px] text-slate-500 font-sans">
+            Paste this public link directly in Google Chrome or Safari.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Render Authentication and Landing page if unauthorized
   if (!token) {
