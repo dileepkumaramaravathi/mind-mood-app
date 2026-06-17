@@ -40,12 +40,14 @@ export default function App() {
 
   // Private developer URL redirect / CORS interception tracking
   const [privateUrlError, setPrivateUrlError] = useState(false);
+  const [showWarningBanner, setShowWarningBanner] = useState(true);
   const [copiedShared, setCopiedShared] = useState(false);
 
   // Monitor deferred install prompt & standalone status
   useEffect(() => {
     const handleUrlError = () => {
       setPrivateUrlError(true);
+      setShowWarningBanner(true);
     };
     window.addEventListener('private-url-error', handleUrlError);
     return () => {
@@ -211,82 +213,61 @@ export default function App() {
     { id: 'profile' as const, label: 'Profile & Settings', icon: UserIcon },
   ];
 
-  // Private Developer URL safety redirect guard
-  if (privateUrlError) {
-    const publicUrl = window.location.origin.replace('-dev-', '-pre-');
+  const renderWarningBanner = () => {
+    if (!privateUrlError || !showWarningBanner) return null;
     return (
-      <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9] flex items-center justify-center p-6 font-sans" id="private-url-error-view">
-        <div className="max-w-md w-full bg-slate-900/60 border border-slate-800/80 rounded-3xl p-8 shadow-2xl text-center space-y-6">
-          <div className="mx-auto w-16 h-16 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center text-3xl">
-            ⚠️
-          </div>
-          <h2 className="text-xl font-sans font-black tracking-tight text-white mb-2 leading-tight">
-            Private Link Navigation Error
-          </h2>
-          <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
-            You opened a private development link which is blocked on remote devices/mobile or after session timeout. Please use the public, fully authorized preview link:
-          </p>
-          
-          <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 font-mono text-[11px] break-all select-all text-indigo-300">
-            {publicUrl}
-          </div>
-          
-          <div className="space-y-3">
-            <button
-              onClick={handleCopySharedLink}
-              id="copy-shared-url-btn"
-              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-sans font-bold text-xs transition active:scale-[0.98] cursor-pointer shadow-lg"
-            >
-              {copiedShared ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  Shared URL Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  Copy Public Shared URL
-                </>
-              )}
-            </button>
-            
-            <button
-              onClick={() => {
-                setPrivateUrlError(false);
-                window.location.reload();
-              }}
-              id="reload-btn"
-              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-sans font-bold text-xs transition cursor-pointer"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Try Reconnecting
-            </button>
-          </div>
-          
-          <p className="text-[10px] text-slate-500 font-sans">
-            Paste this public link directly in Google Chrome or Safari.
-          </p>
+      <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-500 px-4 py-2.5 text-xs flex justify-between items-center gap-3 font-sans transition-all duration-300 w-full shrink-0" id="dev-url-warning-banner">
+        <div className="flex items-center gap-2 max-w-4xl text-left">
+          <span className="text-sm shrink-0">💡</span>
+          <span className="leading-relaxed">
+            <strong>Private link / static wrapper detected:</strong> Running securely in <strong>client-only sandbox database mode</strong>. Your data is stored locally in this browser. To sync live database of AI Studio across devices, please use the public Shared URL instead.
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button 
+            onClick={handleCopySharedLink}
+            className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 active:scale-95 text-[10px] font-bold rounded-lg transition text-amber-500 cursor-pointer border border-amber-500/20"
+          >
+            {copiedShared ? 'Copied Shared URL!' : 'Copy Shared URL'}
+          </button>
+          <button 
+            onClick={() => setShowWarningBanner(false)}
+            className="p-1 hover:bg-amber-500/15 rounded-md transition text-amber-500/80 cursor-pointer text-[10px] font-bold w-4 h-4 flex items-center justify-center border border-transparent hover:border-amber-500/20"
+            title="Dismiss warning"
+          >
+            ✕
+          </button>
         </div>
       </div>
     );
-  }
+  };
 
   // Render Authentication and Landing page if unauthorized
   if (!token) {
     if (view === 'landing') {
       return (
-        <LandingPage 
-          onGetStarted={() => setView('register')} 
-          onLoginClick={() => setView('login')} 
-        />
+        <div className="flex flex-col min-h-screen">
+          {renderWarningBanner()}
+          <div className="flex-1">
+            <LandingPage 
+              onGetStarted={() => setView('register')} 
+              onLoginClick={() => setView('login')} 
+            />
+          </div>
+        </div>
       );
     }
     return (
-      <AuthPage 
-        initialMode={view === 'register' ? 'register' : 'login'}
-        onAuthSuccess={handleAuthSuccess}
-        onBackToLanding={() => setView('landing')}
-      />
+      <div className="flex flex-col min-h-screen">
+        {renderWarningBanner()}
+        <div className="flex-1">
+          <AuthPage 
+            initialMode={view === 'register' ? 'register' : 'login'}
+            onAuthSuccess={handleAuthSuccess}
+            onBackToLanding={() => setView('landing')}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -301,11 +282,14 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen font-sans flex flex-col md:flex-row transition-colors duration-300 ${
+    <div className={`min-h-screen font-sans flex flex-col transition-colors duration-300 ${
       isDarkMode ? 'bg-[#0f172a] text-[#f1f5f9]' : 'bg-[#f8fafc] text-[#1e293b]'
     }`} id="applet-body-shell">
+      {renderWarningBanner()}
       
-      {/* 1. Large Screen Sidebar */}
+      <div className="flex flex-col md:flex-row flex-1">
+        
+        {/* 1. Large Screen Sidebar */}
       <aside className={`hidden md:flex flex-col w-64 p-6 border-r shrink-0 transition-colors duration-200 ${
         isDarkMode ? 'bg-[#1e293b]/90 border-slate-700/50' : 'bg-white border-slate-200/60'
       }`} id="desktop-sidebar">
@@ -635,6 +619,7 @@ export default function App() {
           )}
         </div>
       </main>
+      </div>
 
       {/* 4. Mobile Bottom Navigation bar */}
       <nav className={`md:hidden fixed bottom-0 left-0 w-full border-t flex items-center justify-around py-2 z-30 transition-colors bg-white border-slate-150`} id="mobile-bottom-bar">
