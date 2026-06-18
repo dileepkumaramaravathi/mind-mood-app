@@ -46,4 +46,6 @@ jobs:
             test_report.xlsx
             frontend_test_report.xlsx
             tests/reports/test_report.xlsx
+          if-no-files-found: warn
+
 
