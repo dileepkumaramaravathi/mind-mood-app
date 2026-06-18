@@ -27,7 +27,6 @@ export default function Dashboard({ user, todayMood, onRecordMood, onNavigate, t
   const [searchResults, setSearchResults] = useState<{ journals: any[]; moods: any[] } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
-<<<<<<< HEAD
   // Daily Habits Checklist
   const [checklist, setChecklist] = useState(() => {
     const saved = localStorage.getItem('daily_checklist');
@@ -84,9 +83,6 @@ export default function Dashboard({ user, todayMood, onRecordMood, onNavigate, t
     const day = new Date().getDate();
     return quotesList[day % quotesList.length];
   });
-
-=======
->>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
   const handleSearch = async (val: string) => {
     setSearchQuery(val);
     if (!val.trim()) {
@@ -367,7 +363,6 @@ export default function Dashboard({ user, todayMood, onRecordMood, onNavigate, t
             )}
           </div>
 
-<<<<<<< HEAD
           {/* Daily Checklist */}
           <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-xs animate-fade-in" id="daily-checklist-container">
             <div className="flex items-center justify-between mb-4">
@@ -457,9 +452,6 @@ export default function Dashboard({ user, todayMood, onRecordMood, onNavigate, t
               </button>
             </div>
           </div>
-
-=======
->>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
           {/* Quick Actions Panel */}
           <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-xs" id="quick-actions-panel">
             <h2 className="font-sans font-bold text-lg text-slate-800 mb-4">Wellness Core Actions</h2>
@@ -609,15 +601,9 @@ export default function Dashboard({ user, todayMood, onRecordMood, onNavigate, t
           <div className="p-6 bg-rose-50/50 border border-rose-100 rounded-3xl" id="daily-inspirational-card">
             <span className="text-[10px] font-mono font-bold text-rose-500 uppercase tracking-wider block">Empathetic Affirmation</span>
             <p className="font-sans text-sm text-rose-800 italic mt-2 leading-relaxed">
-<<<<<<< HEAD
               &ldquo;{dailyQuote.text}&rdquo;
             </p>
             <span className="block mt-2 text-xs font-sans text-rose-500 font-semibold">— {dailyQuote.author}</span>
-=======
-              &ldquo;Owning our story and loving ourselves through that process is the bravest thing that we will ever do. Every emotional ripple is part of your human story.&rdquo;
-            </p>
-            <span className="block mt-2 text-xs font-sans text-rose-500 font-semibold">— Brené Brown</span>
->>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
           </div>
         </div>
 

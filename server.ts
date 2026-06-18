@@ -752,7 +752,6 @@ app.post('/api/meditation/complete', authMiddleware, (req: AuthenticatedRequest,
   }
 });
 
-<<<<<<< HEAD
 // Simple backend health and info endpoints for local ownership
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({
@@ -782,8 +781,6 @@ app.get('/api/backend/info', authMiddleware, (req: AuthenticatedRequest, res: Re
   });
 });
 
-=======
->>>>>>> 2ad25e04333d3ad342025ecf87a227b44168bac3
 
 // ==================== FRONTEND OR VITE INTEGRATION ====================
 
