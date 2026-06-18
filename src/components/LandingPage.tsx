@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
-import { Sparkles, Brain, BookOpen, BarChart3, Shield, MessageCircle, Heart, ArrowRight, Smartphone, QrCode, Copy, Check } from 'lucide-react';
+import { Sparkles, Brain, BookOpen, BarChart3, Shield, MessageCircle, Heart, ArrowRight } from 'lucide-react';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -13,19 +13,6 @@ interface LandingPageProps {
 }
 
 export default function LandingPage({ onGetStarted, onLoginClick }: LandingPageProps) {
-  const getPublicOrigin = () => {
-    return window.location.origin.replace('-dev-', '-pre-');
-  };
-
-  const [copied, setCopied] = useState(false);
-
-  const handleCopyLink = () => {
-    const publicOrigin = getPublicOrigin();
-    navigator.clipboard.writeText(publicOrigin);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="relative min-h-screen bg-linear-to-b from-[#f5f3ff] via-[#f0f4ff] to-[#ecf2fe] text-[#2c2445] overflow-x-hidden" id="landing-page">
       {/* Decorative ambient blobs */}
@@ -238,85 +225,6 @@ export default function LandingPage({ onGetStarted, onLoginClick }: LandingPageP
                   Decompresses from tension instantly using our interactive meditation breathing guides built directly within the portal.
                 </p>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile QR & PWA Scan-to-Download Companion section */}
-      <div className="bg-gradient-to-tr from-[#f3f0ff] to-[#eef2ff] border-y border-indigo-100/60 py-16" id="mobile-download-section">
-        <div className="max-w-4xl mx-auto px-6">
-          <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-indigo-50/80 shadow-xl p-8 md:p-10" id="mobile-card">
-            <div className="grid md:grid-cols-12 gap-8 items-center">
-              
-              {/* Scan description */}
-              <div className="md:col-span-7 space-y-4">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold font-sans">
-                  <Smartphone className="w-4 h-4 text-indigo-600" />
-                  Instant Mobile Installation
-                </span>
-                
-                <h2 className="font-sans font-extrabold text-2xl md:text-3xl text-slate-900 tracking-tight leading-tight">
-                  Open & Setup as an App on Your Mobile Device
-                </h2>
-                
-                <p className="font-sans text-slate-500 text-sm leading-relaxed">
-                  Open Mind Mood AI on your Android or Apple phone securely. Scan the QR code with your phone's camera, or copy and share the direct link to run it full-screen with native responsive spacing!
-                </p>
-
-                {/* Copy Link component */}
-                <div className="pt-2 flex flex-col sm:flex-row gap-2">
-                  <button
-                    onClick={handleCopyLink}
-                    id="copy-mobile-link-btn"
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-sans font-bold text-xs transition duration-200 cursor-pointer shadow-md shadow-indigo-100"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="w-4 h-4 text-emerald-200" />
-                        Copied Successfully!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        Copy Public Mobile Link
-                      </>
-                    )}
-                  </button>
-                  <p className="text-[11px] text-slate-400 font-sans flex items-center justify-center sm:justify-start">
-                    (Tip: Paste this directly in Google Chrome or Safari)
-                  </p>
-                </div>
-
-                {/* Quick Quick PWA Setup Guides */}
-                <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-sans text-slate-600">
-                  <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-100">
-                    <strong className="block text-slate-800 font-bold mb-0.5">🍏 For Apple iOS (Safari)</strong>
-                    Scroll down and tap <span className="font-bold text-indigo-600">"Add to Home Screen"</span> under the main share panel.
-                  </div>
-                  <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-100">
-                    <strong className="block text-slate-800 font-bold mb-0.5">🤖 For Android (Chrome)</strong>
-                    Tap the browser menu <span className="font-bold text-indigo-600">⋮ (three dots)</span> and select <span className="font-bold text-indigo-600">"Install app"</span>.
-                  </div>
-                </div>
-              </div>
-
-              {/* QR Code generator box right of center */}
-              <div className="md:col-span-5 flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-100/80">
-                <div className="bg-white p-3 rounded-xl shadow-xs border border-slate-100 font-sans text-center">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(getPublicOrigin())}`}
-                    alt="Scan To Open On Mobile"
-                    className="w-40 h-40 object-contain rounded-lg mx-auto"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5 text-slate-500 text-xs font-semibold font-sans mt-3">
-                  <QrCode className="w-4 h-4 text-indigo-500 animate-pulse" />
-                  <span>Scan to Open Instantly</span>
-                </div>
-              </div>
-
             </div>
           </div>
         </div>

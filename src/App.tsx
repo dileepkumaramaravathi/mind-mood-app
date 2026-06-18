@@ -20,12 +20,6 @@ import Community from './components/Community';
 import Notifications from './components/Notifications';
 import WellnessScoreView from './components/WellnessScoreView';
 import { Mood, MoodType, User } from './types';
-import { Smartphone, Download, Info, Copy, Check, RefreshCw } from 'lucide-react';
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
 
 type ActiveView = 'landing' | 'login' | 'register' | 'dashboard' | 'chat' | 'journal' | 'analytics' | 'profile' | 'meditation' | 'community' | 'notifications' | 'wellness';
 
@@ -37,55 +31,6 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-
-  // Private developer URL redirect / CORS interception tracking
-  const [privateUrlError, setPrivateUrlError] = useState(false);
-  const [showWarningBanner, setShowWarningBanner] = useState(true);
-  const [copiedShared, setCopiedShared] = useState(false);
-
-  // Monitor deferred install prompt & standalone status
-  useEffect(() => {
-    const handleUrlError = () => {
-      setPrivateUrlError(true);
-      setShowWarningBanner(true);
-    };
-    window.addEventListener('private-url-error', handleUrlError);
-    return () => {
-      window.removeEventListener('private-url-error', handleUrlError);
-    };
-  }, []);
-
-  const handleCopySharedLink = () => {
-    const publicUrl = window.location.origin.replace('-dev-', '-pre-');
-    navigator.clipboard.writeText(publicUrl);
-    setCopiedShared(true);
-    setTimeout(() => setCopiedShared(false), 2000);
-  };
-
-  // PWA states
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(() => {
-    const closed = localStorage.getItem('pwa_banner_closed');
-    return closed !== 'true';
-  });
-  const [showManualGuide, setShowManualGuide] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-
-  // Monitor deferred install prompt & standalone status
-  useEffect(() => {
-    const handleBeforeInstall = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-
-    const checkStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-    setIsStandalone(!!checkStandalone);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
-    };
-  }, []);
 
   // Load token + user on launch
   useEffect(() => {
@@ -213,61 +158,22 @@ export default function App() {
     { id: 'profile' as const, label: 'Profile & Settings', icon: UserIcon },
   ];
 
-  const renderWarningBanner = () => {
-    if (!privateUrlError || !showWarningBanner) return null;
-    return (
-      <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-500 px-4 py-2.5 text-xs flex justify-between items-center gap-3 font-sans transition-all duration-300 w-full shrink-0" id="dev-url-warning-banner">
-        <div className="flex items-center gap-2 max-w-4xl text-left">
-          <span className="text-sm shrink-0">💡</span>
-          <span className="leading-relaxed">
-            <strong>Private link / static wrapper detected:</strong> Running securely in <strong>client-only sandbox database mode</strong>. Your data is stored locally in this browser. To sync live database of AI Studio across devices, please use the public Shared URL instead.
-          </span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button 
-            onClick={handleCopySharedLink}
-            className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 active:scale-95 text-[10px] font-bold rounded-lg transition text-amber-500 cursor-pointer border border-amber-500/20"
-          >
-            {copiedShared ? 'Copied Shared URL!' : 'Copy Shared URL'}
-          </button>
-          <button 
-            onClick={() => setShowWarningBanner(false)}
-            className="p-1 hover:bg-amber-500/15 rounded-md transition text-amber-500/80 cursor-pointer text-[10px] font-bold w-4 h-4 flex items-center justify-center border border-transparent hover:border-amber-500/20"
-            title="Dismiss warning"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   // Render Authentication and Landing page if unauthorized
   if (!token) {
     if (view === 'landing') {
       return (
-        <div className="flex flex-col min-h-screen">
-          {renderWarningBanner()}
-          <div className="flex-1">
-            <LandingPage 
-              onGetStarted={() => setView('register')} 
-              onLoginClick={() => setView('login')} 
-            />
-          </div>
-        </div>
+        <LandingPage 
+          onGetStarted={() => setView('register')} 
+          onLoginClick={() => setView('login')} 
+        />
       );
     }
     return (
-      <div className="flex flex-col min-h-screen">
-        {renderWarningBanner()}
-        <div className="flex-1">
-          <AuthPage 
-            initialMode={view === 'register' ? 'register' : 'login'}
-            onAuthSuccess={handleAuthSuccess}
-            onBackToLanding={() => setView('landing')}
-          />
-        </div>
-      </div>
+      <AuthPage 
+        initialMode={view === 'register' ? 'register' : 'login'}
+        onAuthSuccess={handleAuthSuccess}
+        onBackToLanding={() => setView('landing')}
+      />
     );
   }
 
@@ -282,14 +188,11 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen font-sans flex flex-col transition-colors duration-300 ${
+    <div className={`min-h-screen font-sans flex flex-col md:flex-row transition-colors duration-300 ${
       isDarkMode ? 'bg-[#0f172a] text-[#f1f5f9]' : 'bg-[#f8fafc] text-[#1e293b]'
     }`} id="applet-body-shell">
-      {renderWarningBanner()}
       
-      <div className="flex flex-col md:flex-row flex-1">
-        
-        {/* 1. Large Screen Sidebar */}
+      {/* 1. Large Screen Sidebar */}
       <aside className={`hidden md:flex flex-col w-64 p-6 border-r shrink-0 transition-colors duration-200 ${
         isDarkMode ? 'bg-[#1e293b]/90 border-slate-700/50' : 'bg-white border-slate-200/60'
       }`} id="desktop-sidebar">
@@ -467,129 +370,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* PWA Direct Installation Assistant Banner */}
-        {showInstallBanner && !isStandalone && (
-          <div className={`mb-6 p-4 rounded-2xl border transition-all duration-300 ${
-            isDarkMode 
-              ? 'bg-slate-800/80 border-slate-700/80 text-slate-100' 
-              : 'bg-[#6366f1]/5 border-[#6366f1]/15 text-indigo-950'
-          }`} id="pwa-install-banner">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className={`p-2 rounded-xl shrink-0 ${isDarkMode ? 'bg-indigo-950/80 text-indigo-400' : 'bg-indigo-100/80 text-indigo-700'}`}>
-                  <Smartphone className="w-5 h-5 animate-pulse" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold tracking-tight flex items-center gap-1.5">
-                    Install Mind Mood AI on your Phone
-                    <span className="bg-emerald-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider animate-bounce">PWA</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl leading-relaxed">
-                    Install this companion directly on your phone's home screen for seamless offline tracking, extremely fast loading times, and a full screen native app experience.
-                  </p>
-                  
-                  {/* Action row */}
-                  <div className="flex flex-wrap gap-2.5 mt-3">
-                    {deferredPrompt ? (
-                      <button
-                        onClick={async () => {
-                          deferredPrompt.prompt();
-                          const choice = await deferredPrompt.userChoice;
-                          if (choice.outcome === 'accepted') {
-                            setDeferredPrompt(null);
-                          }
-                        }}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-sans font-bold text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 transition shadow-xs cursor-pointer"
-                      >
-                        <Download className="w-4 h-4" />
-                        Install Automatically
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setShowManualGuide(!showManualGuide)}
-                        className={`font-sans font-bold text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 transition cursor-pointer ${
-                          isDarkMode 
-                            ? 'bg-slate-705 bg-slate-700 hover:bg-slate-600 text-slate-200' 
-                            : 'bg-white hover:bg-slate-100 border border-slate-200 text-slate-700'
-                        }`}
-                      >
-                        <Info className="w-4 h-4 text-indigo-500" />
-                        {showManualGuide ? 'Hide Guide' : 'How to Install on Mobile'}
-                      </button>
-                    )}
-                    
-                    {!deferredPrompt && (
-                      <button
-                        onClick={() => setShowManualGuide(!showManualGuide)}
-                        className="text-xs text-indigo-600 hover:underline font-bold self-center px-1 py-1"
-                      >
-                        Learn more
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <button 
-                onClick={() => {
-                  setShowInstallBanner(false);
-                  localStorage.setItem('pwa_banner_closed', 'true');
-                }}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition shrink-0 cursor-pointer"
-                title="Dismiss banner"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Step-by-step collapsible instructions */}
-            {showManualGuide && (
-              <div className={`mt-4 p-4 rounded-xl border border-dashed text-xs space-y-4 transition-all duration-300 ${
-                isDarkMode ? 'bg-slate-900/60 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-600'
-              }`}>
-                {/* In-App Browser limitation explanation */}
-                <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 p-3 rounded-lg flex gap-2.5 items-start">
-                  <span className="text-base leading-none">⚠️</span>
-                  <div>
-                    <strong className="font-bold text-slate-800 dark:text-amber-300">Opening from WhatsApp or social media?</strong>
-                    <p className="mt-0.5 leading-relaxed text-[11px]">
-                      In-app browsers do not support downloading apps. To install this, copy your link and open it manually inside a real browser: <span className="font-semibold underline">Google Chrome</span> on Android or <span className="font-semibold underline">Safari</span> on iPhone.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Android Instruction Card */}
-                  <div className="space-y-2">
-                    <h4 className="font-bold flex items-center gap-1.5 text-slate-850 dark:text-white">
-                      <span>🤖</span> Android Devices (Google Chrome)
-                    </h4>
-                    <ol className="list-decimal pl-4.5 space-y-1.5 text-slate-500 dark:text-slate-400 leading-relaxed">
-                      <li>Copy your Shared App URL and open the <strong className="text-slate-700 dark:text-slate-300">Google Chrome</strong> browser.</li>
-                      <li>Paste the URL and load the website.</li>
-                      <li>Tap the Chrome menu button <strong className="text-slate-700 dark:text-slate-300">⋮ (three dots)</strong> in the top-right corner.</li>
-                      <li>Select <strong className="text-indigo-600 dark:text-indigo-400">"Install app"</strong> or <strong className="text-indigo-600 dark:text-indigo-400">"Add to Home screen"</strong>.</li>
-                    </ol>
-                  </div>
-
-                  {/* iOS Instruction Card */}
-                  <div className="space-y-2">
-                    <h4 className="font-bold flex items-center gap-1.5 text-slate-850 dark:text-white">
-                      <span>🍏</span> iPhones & iPads (Apple Safari)
-                    </h4>
-                    <ol className="list-decimal pl-4.5 space-y-1.5 text-slate-500 dark:text-slate-400 leading-relaxed">
-                      <li>Copy your Shared App URL and open the official <strong className="text-slate-700 dark:text-slate-300">Safari</strong> app.</li>
-                      <li>Paste the URL and load the website.</li>
-                      <li>Tap the <strong className="text-slate-700 dark:text-slate-300">Share</strong> icon (the square box with an arrow pointing up) in the bottom navigation.</li>
-                      <li>Scroll down the list and select <strong className="text-indigo-600 dark:text-indigo-400">"Add to Home Screen"</strong>.</li>
-                    </ol>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Custom Tab rendering */}
         <div id="subview-portal">
           {view === 'dashboard' && (
@@ -619,7 +399,6 @@ export default function App() {
           )}
         </div>
       </main>
-      </div>
 
       {/* 4. Mobile Bottom Navigation bar */}
       <nav className={`md:hidden fixed bottom-0 left-0 w-full border-t flex items-center justify-around py-2 z-30 transition-colors bg-white border-slate-150`} id="mobile-bottom-bar">
